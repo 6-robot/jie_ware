@@ -86,6 +86,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
     map_msg = *msg;
     crop_map();
+    processMap();        
 }
 
 void crop_map()
@@ -321,28 +322,26 @@ int main(int argc, char** argv)
     ros::Subscriber initial_pose_sub = nh.subscribe("/initialpose", 1, initialPoseCallback);
     clear_costmaps_client = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
 
-    ros::Rate rate(50);  // 匹配频率
+    ros::Rate rate(100);  // 匹配频率
 
     while (ros::ok())
     {
         if (!map_cropped.empty())
         {
-            processMap();
-            
             map_match = map_temp.clone();
-            cv::cvtColor(map_match, map_match, cv::COLOR_GRAY2BGR);
+            // cv::cvtColor(map_match, map_match, cv::COLOR_GRAY2BGR);
 
             // 遍历 map_cropped，将 map_match 中对应的障碍物像素设置为紫色
-            for (int y = 0; y < map_cropped.rows; ++y)
-            {
-                for (int x = 0; x < map_cropped.cols; ++x)
-                {
-                    if (map_cropped.at<uchar>(y, x) == 100)  //  100 表示障碍物
-                    {
-                        map_match.at<cv::Vec3b>(y, x) = cv::Vec3b(128, 0, 128);  // 紫色 (BGR格式)
-                    }
-                }
-            }
+            // for (int y = 0; y < map_cropped.rows; ++y)
+            // {
+            //     for (int x = 0; x < map_cropped.cols; ++x)
+            //     {
+            //         if (map_cropped.at<uchar>(y, x) == 100)  //  100 表示障碍物
+            //         {
+            //             map_match.at<cv::Vec3b>(y, x) = cv::Vec3b(128, 0, 128);  // 紫色 (BGR格式)
+            //         }
+            //     }
+            // }
 
             // 计算三种情况下的雷达点坐标数组
             std::vector<cv::Point2f> transform_points, clockwise_points, counter_points;
@@ -384,7 +383,7 @@ int main(int argc, char** argv)
                     {
                         float px = point.x + offsets[i].x;
                         float py = point.y + offsets[i].y;
-                        if (px >= 0 && px < map_match.cols && py >= 0 && py < map_match.rows)
+                        if (px >= 0 && px < map_temp.cols && py >= 0 && py < map_temp.rows)
                         {
                             sum += map_temp.at<uchar>(py, px);
                         }
@@ -405,15 +404,15 @@ int main(int argc, char** argv)
             lidar_yaw += best_dyaw;
 
             // 绘制最佳匹配的测距点
-            for (const auto& point : transform_points)
-            {
-                float px = point.x + best_dx;
-                float py = point.y + best_dy;
-                if (px >= 0 && px < map_match.cols && py >= 0 && py < map_match.rows)
-                {
-                    map_match.at<cv::Vec3b>(py, px) = cv::Vec3b(0, 0, 255);  // BGR 格式：红色
-                }
-            }
+            // for (const auto& point : transform_points)
+            // {
+            //     float px = point.x + best_dx;
+            //     float py = point.y + best_dy;
+            //     if (px >= 0 && px < map_match.cols && py >= 0 && py < map_match.rows)
+            //     {
+            //         map_match.at<cv::Vec3b>(py, px) = cv::Vec3b(0, 0, 255);  // BGR 格式：红色
+            //     }
+            // }
         }
 
         pose_tf();
