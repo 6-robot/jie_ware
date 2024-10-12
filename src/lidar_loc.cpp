@@ -29,6 +29,7 @@ std::string base_frame;
 std::string laser_frame;
 
 float lidar_x = 250, lidar_y = 250, lidar_yaw = 0;
+float deg_to_rad = M_PI / 180.0;
 int cur_sum = 0;
 int clear_countdown = -1;
 
@@ -48,7 +49,7 @@ void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
         base_pose.header = msg->header;
         base_pose.pose = msg->pose.pose;
 
-        // 3. 将 base_footprint 的位姿转换为 laser 的位姿
+        // 3. 将 base_frame 的位姿转换为 laser_frame 的位姿
         tf2::doTransform(base_pose, laser_pose, transformStamped);
 
         // 4. 从转换后的消息中提取位置和方向信息
@@ -65,7 +66,7 @@ void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
         double roll, pitch, yaw;
         m.getRPY(roll, pitch, yaw);
 
-        // 6. 将地图坐标转换为OpenCV坐标（OpenCV的y轴是向下的，而ROS的y轴是向上的）
+        // 6. 将地图坐标转换为裁切后的地图坐标
         lidar_x = (x - map_msg.info.origin.position.x) / map_msg.info.resolution - map_roi_info.x_offset;
         lidar_y = (y - map_msg.info.origin.position.y) / map_msg.info.resolution - map_roi_info.y_offset;
         
@@ -166,6 +167,7 @@ void crop_map()
     initialPoseCallback(init_pose_ptr);
 }
 
+bool check(float x, float y, float yaw);
 void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
     scan_points.clear();
@@ -186,10 +188,10 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         if (!map_cropped.empty())
         {
             map_match = map_temp.clone();
-            
+
             // 计算三种情况下的雷达点坐标数组
             std::vector<cv::Point2f> transform_points, clockwise_points, counter_points;
-            float deg_to_rad = M_PI / 180.0;
+            
             int max_sum = 0;
             float best_dx = 0, best_dy = 0, best_dyaw = 0;
 
@@ -247,13 +249,12 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
             lidar_y += best_dy;
             lidar_yaw += best_dyaw;
 
-            if(best_dx == 0 && best_dy == 0 && best_dyaw == 0)
+            // 判断匹配循环是否可以终止
+            if(check(lidar_x , lidar_y , lidar_yaw))
             {
                 break;
             }
-
         }
-
     }
 
     if(clear_countdown > -1)
@@ -263,6 +264,45 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         std_srvs::Empty srv;
         clear_costmaps_client.call(srv);
     }
+}
+
+std::deque<std::tuple<float, float, float>> data_queue;
+const size_t max_size = 10;
+bool check(float x, float y, float yaw)
+{
+    if(x == 0 && y == 0 && yaw == 0)
+    {
+        data_queue.clear();
+        return true;
+    }
+
+    // 添加新数据
+    data_queue.push_back(std::make_tuple(x, y, yaw));
+
+    // 如果队列超过最大大小，移除最旧的数据
+    if (data_queue.size() > max_size) 
+    {
+        data_queue.pop_front();
+    }
+
+    // 如果队列已满，检查第一个和最后一个元素
+    if (data_queue.size() == max_size) 
+    {
+        auto& first = data_queue.front();
+        auto& last = data_queue.back();
+
+        float dx = std::abs(std::get<0>(last) - std::get<0>(first));
+        float dy = std::abs(std::get<1>(last) - std::get<1>(first));
+        float dyaw = std::abs(std::get<2>(last) - std::get<2>(first));
+
+        // 如果所有差值的绝对值都小于5，清空队列退出循环
+        if (dx < 5 && dy < 5 && dyaw < 5*deg_to_rad)
+        {
+            data_queue.clear();
+            return true;
+        }
+    }
+    return false;
 }
 
 cv::Mat createGradientMask(int size)
@@ -404,7 +444,6 @@ int main(int argc, char** argv)
         ros::spinOnce();
         rate.sleep();
     }
-
 
     return 0;
 }
