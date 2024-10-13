@@ -27,11 +27,13 @@ std::vector<cv::Point2f> transform_points;
 ros::ServiceClient clear_costmaps_client;
 std::string base_frame;
 std::string laser_frame;
+std::string laser_topic;
 
 float lidar_x = 250, lidar_y = 250, lidar_yaw = 0;
 float deg_to_rad = M_PI / 180.0;
 int cur_sum = 0;
 int clear_countdown = -1;
+int scan_count = 0;
 
 // 初始姿态回调函数
 void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
@@ -182,6 +184,8 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         }
         angle += msg->angle_increment;
     }
+    if(scan_count == 0)
+        scan_count ++;
 
     while (ros::ok())
     {
@@ -356,6 +360,7 @@ void processMap()
 
 void pose_tf()
 {
+    if (scan_count == 0) return;
     if (map_cropped.empty() || map_msg.data.empty()) return;
 
     static tf2_ros::Buffer tfBuffer;
@@ -429,12 +434,13 @@ int main(int argc, char** argv)
     ros::NodeHandle private_nh("~");
     private_nh.param<std::string>("base_frame", base_frame, "base_footprint");
     private_nh.param<std::string>("laser_frame", laser_frame, "laser");
+    private_nh.param<std::string>("laser_topic", laser_topic, "scan");
 
     ros::NodeHandle nh;
-    ros::Subscriber map_sub = nh.subscribe("/map", 1, mapCallback);
-    ros::Subscriber scan_sub = nh.subscribe("/scan", 1, scanCallback);
-    ros::Subscriber initial_pose_sub = nh.subscribe("/initialpose", 1, initialPoseCallback);
-    clear_costmaps_client = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
+    ros::Subscriber map_sub = nh.subscribe("map", 1, mapCallback);
+    ros::Subscriber scan_sub = nh.subscribe(laser_topic, 1, scanCallback);
+    ros::Subscriber initial_pose_sub = nh.subscribe("initialpose", 1, initialPoseCallback);
+    clear_costmaps_client = nh.serviceClient<std_srvs::Empty>("move_base/clear_costmaps");
 
     ros::Rate rate(30);  // tf发送频率
 

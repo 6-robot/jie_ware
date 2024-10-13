@@ -32,7 +32,7 @@
   <node name="chair_3" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpr_simulation)/models/chair.model -x 2.7 -y 2.3 -z 0 -Y -1.57 -urdf -model chair_3" />
 
   <!-- Spawn a robot into Gazebo -->
-  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpr_simulation)/models/wpb_home.model -urdf -x -0.0 -y -0.0 -model wpb_home" />
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpr_simulation)/models/wpb_home.model -urdf -x 0.0 -y 0.0 -model wpb_home" />
 
   <!-- Run the map server -->
   <node name="map_server" pkg="map_server" type="map_server" args="$(find wpr_simulation)/maps/map.yaml"/>
@@ -41,6 +41,7 @@
   <node pkg="jie_ware" type="lidar_loc" name="lidar_loc" >
     <param name="base_frame" value="base_footprint" />
     <param name="laser_frame" value="laser" />
+    <param name="laser_topic" value="scan" />
   </node>
 
   <!--- Run move base -->
