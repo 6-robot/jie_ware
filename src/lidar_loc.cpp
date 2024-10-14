@@ -23,7 +23,7 @@ cv::Mat map_temp;
 cv::Mat map_match;
 sensor_msgs::RegionOfInterest map_roi_info;
 std::vector<cv::Point2f> scan_points;
-std::vector<cv::Point2f> transform_points;
+std::vector<cv::Point2f> best_transform;
 ros::ServiceClient clear_costmaps_client;
 std::string base_frame;
 std::string laser_frame;
@@ -191,8 +191,6 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     {
         if (!map_cropped.empty())
         {
-            map_match = map_temp.clone();
-
             // 计算三种情况下的雷达点坐标数组
             std::vector<cv::Point2f> transform_points, clockwise_points, counter_points;
             
@@ -368,11 +366,11 @@ void pose_tf()
 
     // 1. 计算在裁剪地图中的实际米制坐标
     double x_meters = (lidar_x + map_roi_info.x_offset) * map_msg.info.resolution;
-    double y_meters = (map_cropped.rows - lidar_y + map_roi_info.y_offset) * map_msg.info.resolution;
+    double y_meters = (lidar_y + map_roi_info.y_offset) * map_msg.info.resolution;
 
     // 2. 考虑原始地图的原点偏移
     x_meters += map_msg.info.origin.position.x;
-    y_meters += map_msg.info.origin.position.y;
+    y_meters = y_meters + map_msg.info.origin.position.y;
 
     // 3. 处理yaw角度
     double yaw_ros = -lidar_yaw;
@@ -383,7 +381,7 @@ void pose_tf()
 
     // 5. 计算 base_footprint 在 map 中的位置
     double base_x = x_meters;
-    double base_y = -y_meters;
+    double base_y = y_meters;
 
     // 6. 查询 odom 到 base_frame 的变换
     geometry_msgs::TransformStamped odom_to_base;
