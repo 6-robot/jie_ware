@@ -117,7 +117,7 @@ void crop_map()
             map_raw.at<uchar>(y, x) = static_cast<uchar>(map_msg.data[index]);
 
             // 统计有效区域
-            if(map_msg.data[index] != -1)
+            if(map_msg.data[index] == 100)
             {
                 if(bFirstPoint)
                 {
@@ -142,9 +142,14 @@ void crop_map()
     int new_half_height = abs(yMax - yMin)/2 + 50;
     int new_origin_x = cen_x - new_half_width;
     int new_origin_y = cen_y - new_half_height;
-
     int new_width = new_half_width*2;
     int new_height = new_half_height*2;
+
+    if(new_origin_x < 0) new_origin_x = 0;
+    if((new_origin_x + new_width) > info.width) new_width = info.width - new_origin_x;
+    if(new_origin_y < 0) new_origin_y = 0;
+    if((new_origin_y + new_height) > info.height) new_height = info.height - new_origin_y;
+
     cv::Rect roi(new_origin_x, new_origin_y, new_width, new_height);
     cv::Mat roi_map = map_raw(roi).clone();
 
