@@ -21,6 +21,7 @@ catkin_make
 ```
 <node pkg="jie_ware" type="lidar_loc" name="lidar_loc" >
     <param name="base_frame" value="base_footprint" />
+    <param name="odom_frame" value="odom" />
     <param name="laser_frame" value="laser" />
     <param name="laser_topic" value="scan" />
 </node>

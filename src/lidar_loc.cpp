@@ -26,6 +26,7 @@ std::vector<cv::Point2f> scan_points;
 std::vector<cv::Point2f> best_transform;
 ros::ServiceClient clear_costmaps_client;
 std::string base_frame;
+std::string odom_frame;
 std::string laser_frame;
 std::string laser_topic;
 
@@ -391,7 +392,7 @@ void pose_tf()
     // 6. 查询 odom 到 base_frame 的变换
     geometry_msgs::TransformStamped odom_to_base;
     try {
-        odom_to_base = tfBuffer.lookupTransform("odom", laser_frame, ros::Time(0));
+        odom_to_base = tfBuffer.lookupTransform(odom_frame, laser_frame, ros::Time(0));
     }
     catch (tf2::TransformException &ex) {
         ROS_WARN("%s", ex.what());
@@ -412,7 +413,7 @@ void pose_tf()
 
     map_to_odom_msg.header.stamp = ros::Time::now();
     map_to_odom_msg.header.frame_id = "map";
-    map_to_odom_msg.child_frame_id = "odom";
+    map_to_odom_msg.child_frame_id = odom_frame;
     map_to_odom_msg.transform = tf2::toMsg(map_to_odom);
 
     // 计算 yaw 角度
@@ -436,6 +437,7 @@ int main(int argc, char** argv)
     // 读取参数
     ros::NodeHandle private_nh("~");
     private_nh.param<std::string>("base_frame", base_frame, "base_footprint");
+    private_nh.param<std::string>("odom_frame", odom_frame, "odom");
     private_nh.param<std::string>("laser_frame", laser_frame, "laser");
     private_nh.param<std::string>("laser_topic", laser_topic, "scan");
 
