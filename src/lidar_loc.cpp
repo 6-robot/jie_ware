@@ -263,6 +263,10 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
                 break;
             }
         }
+        else
+        {
+            break;
+        }
     }
 
     if(clear_countdown > -1)
