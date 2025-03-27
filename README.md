@@ -7,7 +7,7 @@ Youtube: [《一种简单易用的激光雷达定位方法》](https://www.youtu
 Bilibili: [《代价地图清除》](https://www.bilibili.com/video/BV1kwzqYyEe7/)  
 Youtube: [《代价地图清除》](https://www.youtube.com/watch?v=giHf_PY4EmY)  
 基础：[《ROS 快速入门教材》](https://www.bilibili.com/video/BV1BP4y1o7pw/)  
-扩展：[《ROS 导航，除了 DWA 和 TEB 还有没有其他选择？》](https://www.bilibili.com/video/BV1E7qKYjEjY/)
+扩展：[《ROS 导航，除了 DWA 和 TEB 还有没有其他选择？》](https://www.bilibili.com/video/BV1nQR4YsESM/)
 
 ## 下载源代码
 
