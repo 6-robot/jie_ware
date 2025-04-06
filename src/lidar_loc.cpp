@@ -39,48 +39,33 @@ int scan_count = 0;
 // 初始姿态回调函数
 void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
 {
-    try {
-        static tf2_ros::Buffer tfBuffer;
-        static tf2_ros::TransformListener tfListener(tfBuffer);
+    // 1. 直接从输入消息中提取 map 坐标系下的位置和方向信息
+    double map_x = msg->pose.pose.position.x;
+    double map_y = msg->pose.pose.position.y;
+    tf2::Quaternion q;
+    // 使用 tf2::fromMsg 将 geometry_msgs::Quaternion 转换为 tf2::Quaternion
+    tf2::fromMsg(msg->pose.pose.orientation, q);
 
-        // 1. 查询从 base_frame 到 laser_frame 的转换
-        geometry_msgs::TransformStamped transformStamped = 
-            tfBuffer.lookupTransform(base_frame, laser_frame, ros::Time(0), ros::Duration(1.0));
+    // 2. 将四元数转换为 yaw 角度 (相对于 map 坐标系)
+    tf2::Matrix3x3 m(q);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
 
-        // 2. 创建一个 stamped pose 用于转换
-        geometry_msgs::PoseStamped base_pose, laser_pose;
-        base_pose.header = msg->header;
-        base_pose.pose = msg->pose.pose;
-
-        // 3. 将 base_frame 的位姿转换为 laser_frame 的位姿
-        tf2::doTransform(base_pose, laser_pose, transformStamped);
-
-        // 4. 从转换后的消息中提取位置和方向信息
-        double x = msg->pose.pose.position.x;
-        double y = msg->pose.pose.position.y;
-        tf2::Quaternion q(
-            laser_pose.pose.orientation.x,
-            laser_pose.pose.orientation.y,
-            laser_pose.pose.orientation.z,
-            laser_pose.pose.orientation.w);
-        
-        // 5. 将四元数转换为yaw角度
-        tf2::Matrix3x3 m(q);
-        double roll, pitch, yaw;
-        m.getRPY(roll, pitch, yaw);
-
-        // 6. 将地图坐标转换为裁切后的地图坐标
-        lidar_x = (x - map_msg.info.origin.position.x) / map_msg.info.resolution - map_roi_info.x_offset;
-        lidar_y = (y - map_msg.info.origin.position.y) / map_msg.info.resolution - map_roi_info.y_offset;
-        
-        // 7. 设置yaw角度
-        lidar_yaw = -yaw;
-        clear_countdown = 30;
+    // 3. 检查 map_msg 是否有效
+    if (map_msg.info.resolution <= 0) {
+        ROS_ERROR("地图信息无效或未接收");
+        return;
     }
-    catch (tf2::TransformException &ex) 
-    {
-        ROS_WARN("无法获取从 %s 到 %s 的转换: %s", base_frame.c_str(), laser_frame.c_str(), ex.what());
-    }
+
+    // 4. 将地图坐标转换为裁切后的地图栅格坐标
+    lidar_x = (map_x - map_msg.info.origin.position.x) / map_msg.info.resolution - map_roi_info.x_offset;
+    lidar_y = (map_y - map_msg.info.origin.position.y) / map_msg.info.resolution - map_roi_info.y_offset;
+
+    // 5. 设置 yaw 角度
+    lidar_yaw = -yaw;
+
+    // 6. 设置倒计时
+    clear_countdown = 30;
 }
 
 void crop_map();
