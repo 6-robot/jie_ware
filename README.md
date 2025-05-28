@@ -16,13 +16,18 @@ Youtube: [《代价地图清除》](https://www.youtube.com/watch?v=giHf_PY4EmY)
 cd ~/catkin_ws/src/
 git clone https://github.com/6-robot/jie_ware.git
 ```
+国内镜像：
+```
+cd ~/catkin_ws/src/
+git clone https://gitee.com/s-robot/jie_ware.git
+```
 2. 编译
 ```
 cd ~/catkin_ws
 catkin_make
 ```
 ## 激光定位
-1. 修改导航Launch文件，用如下内容替换AMCL节点
+1. 修改导航Launch文件，用如下内容替换AMCL节点：
 ```
 <node pkg="jie_ware" type="lidar_loc" name="lidar_loc" >
     <param name="base_frame" value="base_footprint" />
@@ -36,8 +41,22 @@ catkin_make
 roslaunch jie_ware lidar_loc_test.launch 
 ```
 ## 代价地图清除
-1. 修改导航Launch文件，添加如下内容
+1. 修改导航Launch文件，添加如下内容：
 ```
 <node pkg="jie_ware" type="costmap_cleaner" name="costmap_cleaner" />
 ```
 2. 运行修改后的Launch文件，正常设置机器人的估计位置即可。
+## 激光雷达滤波
+1. 修改导航Launch文件，添加如下内容：
+```
+<node pkg="jie_ware" type="lidar_filter_node" name="lidar_filter_node" />
+```
+2. 修改代价地图参数文件 costmap_common_params.yaml ，将激光雷达数据话题 topic 从 scan 修改为 scan_filtered 。
+```
+  observation_sources: scan
+  
+  scan:
+    data_type: LaserScan
+    topic: scan_filtered
+```
+3. 运行修改后的Launch文件，正常进行导航。

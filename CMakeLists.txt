@@ -228,3 +228,11 @@ add_dependencies(costmap_cleaner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EX
 target_link_libraries(costmap_cleaner
   ${catkin_LIBRARIES}
 )
+
+add_executable(lidar_filter_node
+  src/lidar_filter_node.cpp
+)
+add_dependencies(lidar_filter_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(lidar_filter_node
+  ${catkin_LIBRARIES}
+)
