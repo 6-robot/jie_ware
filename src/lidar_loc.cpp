@@ -160,17 +160,50 @@ void crop_map()
     initialPoseCallback(init_pose_ptr);
 }
 
+
 bool check(float x, float y, float yaw);
 void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
     scan_points.clear();
     double angle = msg->angle_min;
+
+    static tf2_ros::Buffer tfBuffer;
+    static tf2_ros::TransformListener tfListener(tfBuffer);
+
+    // 从激光雷达到底盘的转换
+    geometry_msgs::TransformStamped transformStamped;
+    try {
+        transformStamped = tfBuffer.lookupTransform(base_frame, laser_frame,ros::Time(0));
+    }
+    catch (tf2::TransformException &ex) {
+        ROS_WARN("%s", ex.what());
+        return;
+    }
+
     for (size_t i = 0; i < msg->ranges.size(); ++i)
     {
         if (msg->ranges[i] >= msg->range_min && msg->ranges[i] <= msg->range_max)
         {
-            float x = msg->ranges[i] * cos(angle) / map_msg.info.resolution;
-            float y = -msg->ranges[i] * sin(angle) / map_msg.info.resolution;
+            // 1. 首先在激光雷达坐标系下计算点的坐标
+            float x_laser = msg->ranges[i] * cos(angle);
+            float y_laser = -msg->ranges[i] * sin(angle);
+
+            // 2. 创建要转换的点
+            geometry_msgs::PointStamped point_laser;
+            point_laser.header.frame_id = laser_frame;
+            point_laser.header.stamp = msg->header.stamp;
+            point_laser.point.x = x_laser;
+            point_laser.point.y = y_laser;
+            point_laser.point.z = 0.0;
+
+            // 3. 转换到底盘坐标系
+            geometry_msgs::PointStamped point_base;
+            tf2::doTransform(point_laser, point_base, transformStamped);
+
+            // 4. 转换为栅格地图坐标并存储
+            float x = point_base.point.x / map_msg.info.resolution;
+            float y = point_base.point.y / map_msg.info.resolution;
+
             scan_points.push_back(cv::Point2f(x, y));
         }
         angle += msg->angle_increment;
@@ -375,13 +408,13 @@ void pose_tf()
     q.setRPY(0, 0, yaw_ros);
 
     // 5. 计算 base_footprint 在 map 中的位置
-    double base_x = x_meters;
-    double base_y = y_meters;
+    double base_x = -x_meters;
+    double base_y = -y_meters;
 
     // 6. 查询 odom 到 base_frame 的变换
     geometry_msgs::TransformStamped odom_to_base;
     try {
-        odom_to_base = tfBuffer.lookupTransform(odom_frame, laser_frame, ros::Time(0));
+        odom_to_base = tfBuffer.lookupTransform(odom_frame, base_frame, ros::Time(0));
     }
     catch (tf2::TransformException &ex) {
         ROS_WARN("%s", ex.what());
