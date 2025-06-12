@@ -6,6 +6,8 @@ Bilibili: [《一种简单易用的激光雷达定位方法》](https://www.bili
 Youtube: [《一种简单易用的激光雷达定位方法》](https://www.youtube.com/watch?v=0JqGX8lKRu0)  
 Bilibili: [《代价地图清除》](https://www.bilibili.com/video/BV1kwzqYyEe7/)  
 Youtube: [《代价地图清除》](https://www.youtube.com/watch?v=giHf_PY4EmY)  
+Bilibili: [《去除ROS导航中的激光雷达噪点》](https://www.bilibili.com/video/BV1LFjBzREQu)  
+Youtube: [《去除ROS导航中的激光雷达噪点》](https://www.youtube.com/watch?v=98GF6_zN_IA)  
 基础：[《ROS 快速入门教材》](https://www.bilibili.com/video/BV1BP4y1o7pw/)  
 扩展：[《ROS 导航，除了 DWA 和 TEB 还有没有其他选择？》](https://www.bilibili.com/video/BV1nQR4YsESM/)
 
