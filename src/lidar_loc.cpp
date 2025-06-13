@@ -160,7 +160,7 @@ void crop_map()
     initialPoseCallback(init_pose_ptr);
 }
 
-
+static bool lidar_is_inverted = false;
 bool check(float x, float y, float yaw);
 void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
@@ -179,6 +179,17 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         ROS_WARN("%s", ex.what());
         return;
     }
+
+    // 检测雷达是否倒装
+    tf2::Quaternion q_lidar;
+    tf2::fromMsg(transformStamped.transform.rotation, q_lidar);
+    
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q_lidar).getRPY(roll, pitch, yaw);
+    
+    const double tolerance = 0.1;
+    bool lidar_is_inverted = std::abs(std::abs(roll) - M_PI) < tolerance;
+    lidar_is_inverted *= !(std::abs(std::abs(pitch) - M_PI) < tolerance);
 
     for (size_t i = 0; i < msg->ranges.size(); ++i)
     {
@@ -203,6 +214,13 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
             // 4. 转换为栅格地图坐标并存储
             float x = point_base.point.x / map_msg.info.resolution;
             float y = point_base.point.y / map_msg.info.resolution;
+            if (lidar_is_inverted)
+            {
+                // 如果雷达倒装，x和y需要取反
+                x = -x;
+                y = -y;
+            }
+
 
             scan_points.push_back(cv::Point2f(x, y));
         }
@@ -386,67 +404,76 @@ void processMap()
 
 void pose_tf()
 {
+    // 如果没有收到过雷达数据或地图，则不进行任何操作
     if (scan_count == 0) return;
-    if (map_cropped.empty() || map_msg.data.empty()) return;
+    if (map_cropped.empty() || map_msg.data.empty() || map_msg.info.resolution <= 0) return;
 
+    // TF listener只需要一个静态实例
     static tf2_ros::Buffer tfBuffer;
     static tf2_ros::TransformListener tfListener(tfBuffer);
 
-    // 1. 计算在裁剪地图中的实际米制坐标
-    double x_meters = (lidar_x + map_roi_info.x_offset) * map_msg.info.resolution;
-    double y_meters = (lidar_y + map_roi_info.y_offset) * map_msg.info.resolution;
+    // ---------------------------------------------------------------------------------
+    // 步骤 1: 将机器人位姿从【裁切地图的像素坐标】转换为【完整地图的米制坐标】
+    // ---------------------------------------------------------------------------------
 
-    // 2. 考虑原始地图的原点偏移
-    x_meters += map_msg.info.origin.position.x;
-    y_meters = y_meters + map_msg.info.origin.position.y;
+    // 1.1 首先，将裁切地图中的像素坐标(lidar_x, lidar_y)转换成完整地图中的像素坐标
+    double full_map_pixel_x = lidar_x + map_roi_info.x_offset;
+    double full_map_pixel_y = lidar_y + map_roi_info.y_offset;
 
-    // 3. 处理yaw角度
-    double yaw_ros = -lidar_yaw;
+    // 1.2 然后，将完整地图的像素坐标转换为 'map' 坐标系下的米制坐标
+    double x_in_map_frame = full_map_pixel_x * map_msg.info.resolution + map_msg.info.origin.position.x;
+    
+    // Y 轴需要注意：图像坐标(向下为正)和地图坐标(向上为正)是相反的,所以需要从地图总高度进行翻转计算
+    double y_in_map_frame = (map_msg.info.height - 1 - full_map_pixel_y) * map_msg.info.resolution + map_msg.info.origin.position.y;
+    y_in_map_frame = -y_in_map_frame; // 翻转Y轴
 
-    // 4. 将弧度转换为四元数
+    // 1.3 处理yaw角度。这里的-号是为了补偿匹配过程中的坐标系定义
+    double yaw_in_map_frame = -lidar_yaw;
+
+    // ---------------------------------------------------------------------------------
+    // 步骤 2: 构建从 'map' 到 'base_frame' 的变换
+    // 这个变换描述了 base_frame 在 map 坐标系中的位置和姿态
+    // ---------------------------------------------------------------------------------
+    tf2::Transform map_to_base;
+    map_to_base.setOrigin(tf2::Vector3(x_in_map_frame, y_in_map_frame, 0.0));
     tf2::Quaternion q;
-    q.setRPY(0, 0, yaw_ros);
+    q.setRPY(0, 0, yaw_in_map_frame);
+    map_to_base.setRotation(q);
 
-    // 5. 计算 base_footprint 在 map 中的位置
-    double base_x = -x_meters;
-    double base_y = -y_meters;
-
-    // 6. 查询 odom 到 base_frame 的变换
-    geometry_msgs::TransformStamped odom_to_base;
+    // ---------------------------------------------------------------------------------
+    // 步骤 3: 查询从 'odom' 到 'base_frame' 的变换
+    // 这是由轮式里程计或其它里程计源发布的
+    // ---------------------------------------------------------------------------------
+    geometry_msgs::TransformStamped odom_to_base_msg;
     try {
-        odom_to_base = tfBuffer.lookupTransform(odom_frame, base_frame, ros::Time(0));
+        // 使用ros::Time(0)来获取最新的可用变换
+        odom_to_base_msg = tfBuffer.lookupTransform(odom_frame, base_frame, ros::Time(0));
     }
     catch (tf2::TransformException &ex) {
-        ROS_WARN("%s", ex.what());
+        ROS_WARN("无法获取从 '%s' 到 '%s' 的变换: %s", odom_frame.c_str(), base_frame.c_str(), ex.what());
         return;
     }
 
-    // 7. 计算 map 到 odom 的变换
-    tf2::Transform map_to_base, odom_to_base_tf2;
-    map_to_base.setOrigin(tf2::Vector3(base_x, base_y, 0));
-    map_to_base.setRotation(q);
-
-    tf2::fromMsg(odom_to_base.transform, odom_to_base_tf2);
+    // ---------------------------------------------------------------------------------
+    // 步骤 4: 计算从 'map' 到 'odom' 的变换
+    // 这是定位节点的核心任务，它提供了对里程计漂移的修正
+    // TF关系: T_map_odom * T_odom_base = T_map_base
+    // 因此: T_map_odom = T_map_base * (T_odom_base)^-1
+    // ---------------------------------------------------------------------------------
+    tf2::Transform odom_to_base_tf2;
+    tf2::fromMsg(odom_to_base_msg.transform, odom_to_base_tf2);
     tf2::Transform map_to_odom = map_to_base * odom_to_base_tf2.inverse();
 
-    // 8. 发布 map 到 odom 的变换
+    // ---------------------------------------------------------------------------------
+    // 步骤 5: 发布 'map' -> 'odom' 的变换
+    // ---------------------------------------------------------------------------------
     static tf2_ros::TransformBroadcaster br;
     geometry_msgs::TransformStamped map_to_odom_msg;
 
-    map_to_odom_msg.header.stamp = ros::Time::now();
+    map_to_odom_msg.header.stamp = ros::Time::now(); // 使用当前时间
     map_to_odom_msg.header.frame_id = "map";
     map_to_odom_msg.child_frame_id = odom_frame;
     map_to_odom_msg.transform = tf2::toMsg(map_to_odom);
-
-    // 计算 yaw 角度
-    tf2::Quaternion q_tf2(
-        map_to_odom_msg.transform.rotation.x,
-        map_to_odom_msg.transform.rotation.y,
-        map_to_odom_msg.transform.rotation.z,
-        map_to_odom_msg.transform.rotation.w);
-    tf2::Matrix3x3 m(q_tf2);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
 
     br.sendTransform(map_to_odom_msg);
 }
