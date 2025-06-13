@@ -20,7 +20,6 @@
 nav_msgs::OccupancyGrid map_msg;
 cv::Mat map_cropped;
 cv::Mat map_temp;
-cv::Mat map_match;
 sensor_msgs::RegionOfInterest map_roi_info;
 std::vector<cv::Point2f> scan_points;
 std::vector<cv::Point2f> best_transform;
@@ -35,6 +34,7 @@ float deg_to_rad = M_PI / 180.0;
 int cur_sum = 0;
 int clear_countdown = -1;
 int scan_count = 0;
+
 
 // 初始姿态回调函数
 void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
@@ -220,7 +220,6 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
                 x = -x;
                 y = -y;
             }
-
 
             scan_points.push_back(cv::Point2f(x, y));
         }
@@ -422,10 +421,7 @@ void pose_tf()
 
     // 1.2 然后，将完整地图的像素坐标转换为 'map' 坐标系下的米制坐标
     double x_in_map_frame = full_map_pixel_x * map_msg.info.resolution + map_msg.info.origin.position.x;
-    
-    // Y 轴需要注意：图像坐标(向下为正)和地图坐标(向上为正)是相反的,所以需要从地图总高度进行翻转计算
-    double y_in_map_frame = (map_msg.info.height - 1 - full_map_pixel_y) * map_msg.info.resolution + map_msg.info.origin.position.y;
-    y_in_map_frame = -y_in_map_frame; // 翻转Y轴
+    double y_in_map_frame = full_map_pixel_y * map_msg.info.resolution + map_msg.info.origin.position.y;
 
     // 1.3 处理yaw角度。这里的-号是为了补偿匹配过程中的坐标系定义
     double yaw_in_map_frame = -lidar_yaw;
