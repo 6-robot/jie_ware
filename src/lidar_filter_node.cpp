@@ -112,27 +112,16 @@ void CLidarFilter::lidarCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
             continue; // 当前点本身无效，跳过
         }
 
-        // 检查前后邻居点是否有效
-        bool prev_valid = std::isfinite(prev_range) &&
-                          prev_range >= new_scan.range_min &&
-                          prev_range <= new_scan.range_max;
-        
-        bool next_valid = std::isfinite(next_range) &&
-                          next_range >= new_scan.range_min &&
-                          next_range <= new_scan.range_max;
-
-        // 只有当当前点和其前后两个邻居点都有效时，才进行离群判断
-        if (prev_valid && next_valid) {
-            if (std::abs(current_range - prev_range) > outlier_threshold_ &&
-                std::abs(current_range - next_range) > outlier_threshold_)
+        // 离群点判定
+        if (std::abs(current_range - prev_range) > outlier_threshold_ &&
+            std::abs(current_range - next_range) > outlier_threshold_)
+        {
+            // 判定为离群点，将其无效化
+            new_scan.ranges[i] = std::numeric_limits<float>::infinity();
+            // 如果有强度信息，将其对应强度设为0
+            if (!new_scan.intensities.empty() && i < new_scan.intensities.size()) 
             {
-                // 判定为离群点，将其无效化
-                new_scan.ranges[i] = std::numeric_limits<float>::infinity();
-                // 如果有强度信息，将其对应强度设为0
-                if (!new_scan.intensities.empty() && i < new_scan.intensities.size()) 
-                {
-                    new_scan.intensities[i] = 0.0f; 
-                }
+                new_scan.intensities[i] = 0.0f; 
             }
         }
     }
